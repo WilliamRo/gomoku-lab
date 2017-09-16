@@ -1,0 +1,24 @@
+# Ignore PyCharm files
+.idea/
+
+# Ignore byte-compiled files
+*.pyc
+*pycache*
+
+# Ignore records and data folder
+records/
+data/
+
+# Ignore files for test
+foobar/
+foo.py
+bar.py
+
+# Ignore private projects
+*private*/
+
+# Ignore ipython notebook checkpoint file
+.ipynb_checkpoints/
+
+# Ignore vim files
+*.swp
