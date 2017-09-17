@@ -102,8 +102,9 @@ class TkBoard(object):
 
     # region: Layout
 
-    self.form.bind('<Key>', self.on_key_press)
     self.form.title('Gomoku')
+    self.form.bind('<Key>', self.on_key_press)
+    self.form.bind('<Control-s>', self.save_game)
     self.form.resizable(width=False, height=False)
 
     self.status_bar = tk.Frame(self.form, bg='white')
@@ -131,7 +132,7 @@ class TkBoard(object):
         self.positions[coord] = tk.Button(
           frame, cursor='hand2', relief='flat', bd=0)
         self.positions[coord].coord = coord
-        self.positions[coord].bind('<Button>', self.on_board_press)
+        self.positions[coord].bind('<Button-1>', self.on_board_press)
         self.positions[coord].pack(side=tk.LEFT)
 
     # Control center
@@ -208,6 +209,9 @@ class TkBoard(object):
     # Undo
     state = tk.NORMAL if len(self.game.redos) > 0 else tk.DISABLED
     self.btnRedo.config(state=state)
+
+  def save_game(self, event):
+    print('Save game')
 
   # endregion: Private Methods
 
