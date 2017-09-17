@@ -53,13 +53,14 @@ class Images:
     '''
     arr = np.ones([stone_size, stone_size]) * 255
 
-    rad = (stone_size - 1) / 2
-    scale = np.arange(stone_size) - rad
-    X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
-    Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
-    D = np.round(np.sqrt(X**2 + Y**2))
-    mask = D <= rad if color == 1 else D == rad
-    arr[mask] = 0
+    if color != 0:
+      rad = (stone_size - 1) / 2
+      scale = np.arange(stone_size) - rad
+      X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
+      Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
+      D = np.round(np.sqrt(X**2 + Y**2))
+      mask = D <= rad if color == 1 else D == rad
+      arr[mask] = 0
 
     img = Image_.fromarray(arr)
     return ImageTk.PhotoImage(img)
@@ -73,7 +74,9 @@ class TkBoard(object):
     self.form = tk.Tk()
     self.grids = {}
     # Images must be generated after an instance of Tk has been created
-    self.stones = {1: Images.stone(1), -1:Images.stone(-1)}
+    self.stones = {1: Images.stone(1),
+                   0: Images.stone(0),
+                   -1:Images.stone(-1)}
     self.positions = {}
 
     # region: Design form
@@ -148,10 +151,20 @@ class TkBoard(object):
         self.set_image((i, j))
 
   def update_status(self):
-    color = self.game.next_stone
-    self.next_stone.config(image=self.stones[color])
-    self.status.config(
-      text="{}'s turn".format("Black" if color == 1 else "White"))
+    stat = self.game.status
+    if stat == 0:
+      color = self.game.next_stone
+      self.next_stone.config(image=self.stones[color])
+      self.status.config(
+        text="{}'s turn".format("Black" if color == 1 else "White"))
+    elif stat in [-1, 1]:
+      self.next_stone.config(image=self.stones[stat])
+      # self.next_stone.config(image=self.stones[0])
+      self.status.config(
+        text="{} wins!".format("Black" if stat == 1 else "White"))
+    else:
+      self.next_stone.config(image=self.stones[0])
+      self.status.config(text='Draw!')
 
   # endregion: Private Methods
 
@@ -165,7 +178,7 @@ class TkBoard(object):
   def on_board_press(self, event):
     button = event.widget
     coord = button.coord
-    if not self.game[coord]:
+    if not self.game[coord] and not self.game.status:
       self.game.place_stone(*coord)
 
   def notify(self):

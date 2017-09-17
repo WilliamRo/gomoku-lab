@@ -8,6 +8,7 @@ import numpy as np
 import six
 
 from .board import Board
+from .logic import get_status
 
 
 class Game(object):
@@ -17,6 +18,7 @@ class Game(object):
     self.board = Board()
     # Game records
     self.records = []
+    self.redos = []
     # Notify
     self.notify = self.default_notify
     # Last action
@@ -32,6 +34,16 @@ class Game(object):
   def next_stone(self):
     return self.board.next_stone
 
+  @property
+  def status(self):
+    if len(self.records) == 0:
+      return 0
+    stat = get_status(self.board.matrix, self.records[-1])
+    if stat != 0:
+      return stat
+
+    return 0 if len(self.records) < 225 else 2
+
   # endregion : Properties
 
   # region : Public Methods
@@ -42,6 +54,7 @@ class Game(object):
   def place_stone(self, row, col):
     if self.board.place_stone(row, col):
       self.records.append((row, col))
+      self.redos = []
       self.last_action = self.place_stone
       self.notify()
 
