@@ -48,5 +48,10 @@ class Board(object):
 
     return True
 
+  def remove_stone(self, row, col):
+    self.matrix[row, col] = 0
+
   # endregion : Public Methods
+
+  '''For some reason ...'''
 

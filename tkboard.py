@@ -12,6 +12,7 @@ from gomoku.game import Game
 
 
 stone_size = 21
+mid = (stone_size - 1) // 2
 
 
 class Images:
@@ -21,7 +22,6 @@ class Images:
 
     arr = np.ones([stone_size, stone_size]) * 255
 
-    mid = (stone_size - 1) // 2
     # Vertical
     if i == 0:
       arr[mid:, mid] = 0
@@ -48,20 +48,40 @@ class Images:
   def stone(color):
     '''
     Generate a binary image for stone
-    :param color: integer in {-1, 1}, -1 for white, 1 for black
+    :param color: integer in {-1, 1}, -1 for white, 1 for black, 0 for draw
+                                       -2/2 for highlighted white/black
     :return: An instance of ImageTk.PhotoImage
     '''
     arr = np.ones([stone_size, stone_size]) * 255
 
-    if color != 0:
-      rad = (stone_size - 1) / 2
-      scale = np.arange(stone_size) - rad
-      X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
-      Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
-      D = np.round(np.sqrt(X**2 + Y**2))
-      mask = D <= rad if color == 1 else D == rad
-      arr[mask] = 0
+    # Calculate distance to origin for each pixel
+    rad = (stone_size - 1) / 2
+    scale = np.arange(stone_size) - rad
+    X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
+    Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
+    D = np.round(np.sqrt(X ** 2 + Y ** 2))
 
+    # Generate images
+    if color in [-1, 1, -2, 2]:
+      mask = D <= rad if color > 0 else D == rad
+      arr[mask] = 0
+      if color in [-2, 2]:
+        brush = 255 if color == 2 else 0
+        half = int(np.round(rad / 2))
+        r = half
+        arr[mid-1:mid+2, mid-r+1:mid+r] = brush
+        arr[mid-r+1:mid+r, mid-1:mid+2] = brush
+
+        rs = 0  # keep it
+        arr[mid, mid-r+1-rs:mid+r+rs] = brush
+        arr[mid-r+1-rs:mid+r+rs, mid] = brush
+    else:
+      mask = D <= rad
+      arr[mask] = 0
+      mask = D <= np.round(rad / 2)
+      arr[mask] = 255
+
+    # Convert array to PhotoImage
     img = Image_.fromarray(arr)
     return ImageTk.PhotoImage(img)
 
@@ -69,14 +89,13 @@ class Images:
 class TkBoard(object):
   def __init__(self, game=None):
     self.game = Game() if game is None else game
-    self.game.notify = self.notify
+    self.game.notify = self.refresh
 
     self.form = tk.Tk()
     self.grids = {}
     # Images must be generated after an instance of Tk has been created
-    self.stones = {1: Images.stone(1),
-                   0: Images.stone(0),
-                   -1:Images.stone(-1)}
+    self.stones = {1: Images.stone(1), 0: Images.stone(0), -1: Images.stone(-1),
+                   2: Images.stone(2), -2: Images.stone(-2)}
     self.positions = {}
 
     # region: Design form
@@ -98,7 +117,7 @@ class TkBoard(object):
 
     # Status bar
     self.next_stone = tk.Label(self.status_bar)
-    self.next_stone.pack(side=tk.LEFT, padx=4)
+    self.next_stone.pack(side=tk.LEFT)
     self.status = tk.Label(self.status_bar, text='Status bar', bg='white')
     self.status.pack(side=tk.LEFT, padx=0)
 
@@ -115,12 +134,22 @@ class TkBoard(object):
         self.positions[coord].bind('<Button>', self.on_board_press)
         self.positions[coord].pack(side=tk.LEFT)
 
-    self.refresh()
-
     # Control center
-    tk.Button(self.form, text='Button1').pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnRestart = tk.Button(self.control_center, text='Restart',
+                                command=self.game.restart)
+    self.btnRestart.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnUndo = tk.Button(self.control_center, text="Undo",
+                             command=self.game.undo)
+    self.btnUndo.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnRedo = tk.Button(self.control_center, text="Redo",
+                             command=self.game.redo)
+    self.btnRedo.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnAuto = tk.Button(self.control_center, text="Auto")
+    self.btnAuto.pack(side=tk.RIGHT, padx=2, pady=2)
 
     # endregion: Design form
+
+    self.refresh()
 
   # region: Public Methods
 
@@ -131,12 +160,12 @@ class TkBoard(object):
 
   # region: Private Methods
 
-  def set_image(self, coord, color=None):
+  def set_image(self, coord, color=None, factor=1):
     color = self.game[coord] if color is None else color
 
     if color:
       # If color is not 0, place stone
-      self.positions[coord].config(image=self.stones[color])
+      self.positions[coord].config(image=self.stones[color*factor])
     else:
       # Else show grid
       self.positions[coord].config(image=self.grids[coord])
@@ -149,6 +178,10 @@ class TkBoard(object):
     for i in range(15):
       for j in range(15):
         self.set_image((i, j))
+    if len(self.game.records) > 0:
+      self.set_image(self.game.records[-1], factor=2)
+    # Refresh control center
+    self.update_control_center()
 
   def update_status(self):
     stat = self.game.status
@@ -158,13 +191,23 @@ class TkBoard(object):
       self.status.config(
         text="{}'s turn".format("Black" if color == 1 else "White"))
     elif stat in [-1, 1]:
-      self.next_stone.config(image=self.stones[stat])
-      # self.next_stone.config(image=self.stones[0])
+      self.next_stone.config(image=self.stones[stat*2])
       self.status.config(
         text="{} wins!".format("Black" if stat == 1 else "White"))
     else:
       self.next_stone.config(image=self.stones[0])
       self.status.config(text='Draw!')
+
+  def update_control_center(self):
+    # Disable button auto
+    self.btnAuto.config(state=tk.DISABLED)
+    # Restart and Undo
+    state = tk.NORMAL if len(self.game.records) > 0 else tk.DISABLED
+    self.btnRestart.config(state=state)
+    self.btnUndo.config(state=state)
+    # Undo
+    state = tk.NORMAL if len(self.game.redos) > 0 else tk.DISABLED
+    self.btnRedo.config(state=state)
 
   # endregion: Private Methods
 
@@ -180,12 +223,6 @@ class TkBoard(object):
     coord = button.coord
     if not self.game[coord] and not self.game.status:
       self.game.place_stone(*coord)
-
-  def notify(self):
-    self.update_status()
-    if self.game.last_action == self.game.place_stone:
-      coord = self.game.records[-1]
-      self.set_image(coord)
 
   # endregion: Events
 

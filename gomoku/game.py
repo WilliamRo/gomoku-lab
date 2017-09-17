@@ -16,13 +16,11 @@ class Game(object):
   def __init__(self):
     # Initiate board
     self.board = Board()
-    # Game records
-    self.records = []
-    self.redos = []
     # Notify
     self.notify = self.default_notify
-    # Last action
-    self.last_action = None
+    # Initialize stacks
+    self.records = []
+    self.redos = []
 
   # region : Properties
 
@@ -50,13 +48,33 @@ class Game(object):
 
   def restart(self):
     self.board.clear()
+    self.records = []
+    self.redos = []
+    # Notification
+    self.notify()
 
   def place_stone(self, row, col):
     if self.board.place_stone(row, col):
       self.records.append((row, col))
       self.redos = []
-      self.last_action = self.place_stone
+      # Notification
       self.notify()
+
+  def undo(self):
+    assert len(self.records) > 0
+    coord = self.records.pop()
+    self.redos.append(coord)
+    self.board.remove_stone(*coord)
+    # Notification
+    self.notify()
+
+  def redo(self):
+    assert len(self.redos) > 0
+    coord = self.redos.pop()
+    self.records.append(coord)
+    self.board.place_stone(*coord)
+    # Notification
+    self.notify()
 
   # endregion : Public Methods
 
