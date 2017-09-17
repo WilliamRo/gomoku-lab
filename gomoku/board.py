@@ -11,22 +11,28 @@ class Board(object):
      set {0(empty), 1(black stone), -1(white stone)}"""
   def __init__(self):
     # Initiate chess board
-    self._board = np.zeros(shape=[15, 15], dtype=np.int8)
+    self.matrix = np.zeros(shape=[15, 15], dtype=np.int8)
 
   # region : Properties
 
   @property
-  def _next_stone(self):
-    assert (isinstance(self._board, np.ndarray)
-            and self._board.shape == (15, 15))
-    return -1 if self._board.sum() else 1
+  def next_stone(self):
+    assert (isinstance(self.matrix, np.ndarray)
+            and self.matrix.shape == (15, 15))
+    return -1 if self.matrix.sum() else 1
+
+  def __getitem__(self, item):
+    assert isinstance(item, tuple) and len(item) == 2
+    return self.matrix[item[0], item[1]]
 
   # endregion : Properties
+
+  # endregion : Overwrite
 
   # region : Public Methods
 
   def clear(self):
-    self._board = np.zeros(shape=[15, 15], dtype=np.int8)
+    self.matrix = np.zeros(shape=[15, 15], dtype=np.int8)
 
   def place_stone(self, row, col):
     # Check input
@@ -36,9 +42,11 @@ class Board(object):
       raise ValueError('!! Input col must be an integer between 0 and 14')
 
     # Place stone on the corresponding position
-    if self._board[row, col]:
+    if self.matrix[row, col]:
       raise ValueError('!! A stone is already on that position')
-    self._board[row, col] = self._next_stone
+    self.matrix[row, col] = self.next_stone
+
+    return True
 
   # endregion : Public Methods
 

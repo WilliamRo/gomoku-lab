@@ -15,8 +15,22 @@ class Game(object):
   def __init__(self):
     # Initiate board
     self.board = Board()
+    # Game records
+    self.records = []
+    # Notify
+    self.notify = self.default_notify
+    # Last action
+    self.last_action = None
 
   # region : Properties
+
+  def __getitem__(self, item):
+    assert isinstance(item, tuple) and len(item) == 2
+    return self.board[item]
+
+  @property
+  def next_stone(self):
+    return self.board.next_stone
 
   # endregion : Properties
 
@@ -26,12 +40,17 @@ class Game(object):
     self.board.clear()
 
   def place_stone(self, row, col):
-    self.board.place_stone(row, col)
+    if self.board.place_stone(row, col):
+      self.records.append((row, col))
+      self.last_action = self.place_stone
+      self.notify()
 
   # endregion : Public Methods
 
   # region : Private Methods
 
+  def default_notify(self):
+    pass
 
   # endregion : Private Methods
 
