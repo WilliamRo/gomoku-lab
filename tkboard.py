@@ -62,6 +62,7 @@ class Images:
     D = np.round(np.sqrt(X ** 2 + Y ** 2))
 
     # Generate images
+    rad = rad - 1
     if color in [-1, 1, -2, 2]:
       mask = D <= rad if color > 0 else D == rad
       arr[mask] = 0
@@ -117,8 +118,9 @@ class TkBoard(object):
     # endregion: Layout
 
     # Status bar
-    self.next_stone = tk.Label(self.status_bar)
-    self.next_stone.pack(side=tk.LEFT)
+    self.next_stone = tk.Label(self.status_bar,
+                               width=stone_size-3, height=stone_size-4)
+    self.next_stone.pack(side=tk.LEFT, padx=2)
     self.status = tk.Label(self.status_bar, text='Status bar', bg='white')
     self.status.pack(side=tk.LEFT, padx=0)
 
@@ -130,7 +132,8 @@ class TkBoard(object):
         coord = (i, j)
         self.grids[coord] = Images.grid(i, j)
         self.positions[coord] = tk.Button(
-          frame, cursor='hand2', relief='flat', bd=0)
+          frame, cursor='hand2', relief='flat', overrelief='raised', bd=0,
+          width=stone_size - 2, height=stone_size - 2)
         self.positions[coord].coord = coord
         self.positions[coord].bind('<Button-1>', self.on_board_press)
         self.positions[coord].pack(side=tk.LEFT)
@@ -221,6 +224,10 @@ class TkBoard(object):
     assert isinstance(event, tk.Event)
     if event.keysym == 'Escape':
       self.form.quit()
+    elif event.keysym in ['j', 'Right']:
+      self.game.redo()
+    elif event.keysym in ['k', 'Left']:
+      self.game.undo()
 
   def on_board_press(self, event):
     button = event.widget

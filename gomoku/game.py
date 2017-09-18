@@ -61,7 +61,8 @@ class Game(object):
       self.notify()
 
   def undo(self):
-    assert len(self.records) > 0
+    if not len(self.records) > 0:
+      return
     coord = self.records.pop()
     self.redos.append(coord)
     self.board.remove_stone(*coord)
@@ -69,7 +70,8 @@ class Game(object):
     self.notify()
 
   def redo(self):
-    assert len(self.redos) > 0
+    if not len(self.redos) > 0:
+      return
     coord = self.redos.pop()
     self.records.append(coord)
     self.board.place_stone(*coord)
