@@ -118,8 +118,7 @@ class TkBoard(object):
     # endregion: Layout
 
     # Status bar
-    self.next_stone = tk.Label(self.status_bar,
-                               width=stone_size-3, height=stone_size-4)
+    self.next_stone = tk.Label(self.status_bar, bd=0)
     self.next_stone.pack(side=tk.LEFT, padx=2)
     self.status = tk.Label(self.status_bar, text='Status bar', bg='white')
     self.status.pack(side=tk.LEFT, padx=0)
@@ -133,7 +132,7 @@ class TkBoard(object):
         self.grids[coord] = Images.grid(i, j)
         self.positions[coord] = tk.Button(
           frame, cursor='hand2', relief='flat', overrelief='raised', bd=0,
-          width=stone_size - 2, height=stone_size - 2)
+          highlightthickness=0)
         self.positions[coord].coord = coord
         self.positions[coord].bind('<Button-1>', self.on_board_press)
         self.positions[coord].pack(side=tk.LEFT)
