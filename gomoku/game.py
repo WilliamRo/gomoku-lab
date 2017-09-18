@@ -2,10 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from collections import Iterable
-
-import numpy as np
-import six
+import pickle
 
 from .board import Board
 from .logic import get_status
@@ -16,8 +13,6 @@ class Game(object):
   def __init__(self):
     # Initiate board
     self.board = Board()
-    # Notify
-    self.notify = self.default_notify
     # Initialize stacks
     self.records = []
     self.redos = []
@@ -50,33 +45,51 @@ class Game(object):
     self.board.clear()
     self.records = []
     self.redos = []
-    # Notification
-    self.notify()
 
   def place_stone(self, row, col):
     if self.board.place_stone(row, col):
       self.records.append((row, col))
       self.redos = []
-      # Notification
-      self.notify()
+      return True
+
+    return False
 
   def undo(self):
     if not len(self.records) > 0:
-      return
+      return False
     coord = self.records.pop()
     self.redos.append(coord)
     self.board.remove_stone(*coord)
-    # Notification
-    self.notify()
+    return True
 
   def redo(self):
     if not len(self.redos) > 0:
-      return
+      return False
     coord = self.redos.pop()
     self.records.append(coord)
     self.board.place_stone(*coord)
-    # Notification
-    self.notify()
+    return True
+
+  def home(self):
+    flag = False
+    while self.undo():
+      flag = True
+    return flag
+
+  def end(self):
+    flag = False
+    while self.redo():
+      flag = True
+    return flag
+
+  def save(self, filename):
+    with open(filename, 'wb') as output:
+      pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
+
+  @staticmethod
+  def load(filename):
+    with open(filename, 'rb') as input_:
+      return pickle.load(input_)
 
   # endregion : Public Methods
 

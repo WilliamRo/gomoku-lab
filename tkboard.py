@@ -1,12 +1,15 @@
 try:
   import tkinter as tk
+  from tkinter import filedialog
 except:
   import Tkinter as tk
+  import tkFileDialog as filedialog
 
 from PIL import Image as Image_
 from PIL import ImageTk
 
 import numpy as np
+import re
 
 from gomoku.game import Game
 
@@ -89,8 +92,10 @@ class Images:
 
 class TkBoard(object):
   def __init__(self, game=None):
-    self.game = Game() if game is None else game
-    self.game.notify = self.refresh
+    self.game = None
+    game = Game() if game is None else game
+    self.bind(game)
+    self.filename = None
 
     self.form = tk.Tk()
     self.grids = {}
@@ -106,6 +111,7 @@ class TkBoard(object):
     self.form.title('Gomoku')
     self.form.bind('<Key>', self.on_key_press)
     self.form.bind('<Control-s>', self.save_game)
+    self.form.bind('<Control-l>', self.load_game)
     self.form.resizable(width=False, height=False)
 
     self.status_bar = tk.Frame(self.form, bg='white')
@@ -139,13 +145,13 @@ class TkBoard(object):
 
     # Control center
     self.btnRestart = tk.Button(self.control_center, text='Restart',
-                                command=self.game.restart)
+                                command=self.restart)
     self.btnRestart.pack(side=tk.LEFT, padx=2, pady=2)
     self.btnUndo = tk.Button(self.control_center, text="Undo",
-                             command=self.game.undo)
+                             command=self.undo)
     self.btnUndo.pack(side=tk.LEFT, padx=2, pady=2)
     self.btnRedo = tk.Button(self.control_center, text="Redo",
-                             command=self.game.redo)
+                             command=self.redo)
     self.btnRedo.pack(side=tk.LEFT, padx=2, pady=2)
     self.btnAuto = tk.Button(self.control_center, text="Auto")
     self.btnAuto.pack(side=tk.RIGHT, padx=2, pady=2)
@@ -162,6 +168,15 @@ class TkBoard(object):
   # endregion: Public Methods
 
   # region: Private Methods
+
+  def restart(self):
+    self.filename = None
+    self.game.restart()
+    self.refresh()
+
+  def bind(self, game):
+    assert isinstance(game, Game)
+    self.game = game
 
   def set_image(self, coord, color=None, factor=1):
     color = self.game[coord] if color is None else color
@@ -185,6 +200,16 @@ class TkBoard(object):
       self.set_image(self.game.records[-1], factor=2)
     # Refresh control center
     self.update_control_center()
+    # Update title
+    self.update_title()
+
+  def update_title(self):
+    filename = 'New Game'
+    if self.filename is not None:
+      paths = re.split(r'/|\\]', self.filename)
+      filename = paths[-1]
+    title = 'Gomoku - {}'.format(filename)
+    self.form.title(title)
 
   def update_status(self):
     stat = self.game.status
@@ -212,27 +237,71 @@ class TkBoard(object):
     state = tk.NORMAL if len(self.game.redos) > 0 else tk.DISABLED
     self.btnRedo.config(state=state)
 
-  def save_game(self, event):
-    print('Save game')
+  def save_game(self, _):
+    filename = filedialog.asksaveasfilename(
+      initialdir='/', title='Save game',
+      filetypes=(("Gomoku files", '*.gmk'),))
+    if filename == '':
+      return
+    if filename[-4:] != '.gmk':
+      filename = '{}.gmk'.format(filename)
+
+    self.game.save(filename)
+    # Print status
+    self.filename = filename
+    print(">> Game file saved to '{}'".format(filename))
+    self.update_title()
+
+  def load_game(self, _):
+    filename = filedialog.askopenfilename(
+      initialdir='/', title='Load game',
+      filetypes=(("Gomoku files", '*.gmk'),))
+    if filename == '':
+      return
+
+    self.filename = filename
+    self.bind(Game.load(filename))
+    self.refresh()
+    # Print status
+    print(">> Loaded game file '{}'".format(filename))
 
   # endregion: Private Methods
 
   # region: Events
 
+  def undo(self):
+    if self.game.undo():
+      self.refresh()
+
+  def redo(self):
+    if self.game.redo():
+      self.refresh()
+
   def on_key_press(self, event):
     assert isinstance(event, tk.Event)
+
+    flag = False
     if event.keysym == 'Escape':
       self.form.quit()
     elif event.keysym in ['j', 'Right']:
-      self.game.redo()
+      self.redo()
     elif event.keysym in ['k', 'Left']:
-      self.game.undo()
+      self.undo()
+    elif event.keysym in ['h', 'Home']:
+      flag = self.game.home()
+    elif event.keysym in ['l', 'End']:
+      flag = self.game.end()
+
+    if flag:
+      self.refresh()
 
   def on_board_press(self, event):
     button = event.widget
     coord = button.coord
     if not self.game[coord] and not self.game.status:
-      self.game.place_stone(*coord)
+      flag = self.game.place_stone(*coord)
+      if flag:
+        self.refresh()
 
   # endregion: Events
 
