@@ -10,6 +10,7 @@ from PIL import ImageTk
 
 import numpy as np
 import re
+import os
 
 from gomoku.game import Game
 
@@ -160,6 +161,18 @@ class TkBoard(object):
 
     self.refresh()
 
+  # region: Properties
+
+  @property
+  def lastdir(self):
+    if self.filename is None:
+      return os.getcwd()
+    else:
+      paths = re.split(r'/|\\]', self.filename)
+      return '/'.join(paths[:-1])
+
+  # endregion: Properties
+
   # region: Public Methods
 
   def show(self):
@@ -206,8 +219,11 @@ class TkBoard(object):
   def update_title(self):
     filename = 'New Game'
     if self.filename is not None:
+      # Hide directory information
       paths = re.split(r'/|\\]', self.filename)
       filename = paths[-1]
+      # Hide extension 'cause it provides no information
+      filename = filename[:-4]
     title = 'Gomoku - {}'.format(filename)
     self.form.title(title)
 
@@ -239,7 +255,7 @@ class TkBoard(object):
 
   def save_game(self, _):
     filename = filedialog.asksaveasfilename(
-      initialdir='/', title='Save game',
+      initialdir=self.lastdir, title='Save game',
       filetypes=(("Gomoku files", '*.gmk'),))
     if filename == '':
       return
@@ -254,7 +270,7 @@ class TkBoard(object):
 
   def load_game(self, _):
     filename = filedialog.askopenfilename(
-      initialdir='/', title='Load game',
+      initialdir=self.lastdir, title='Load game',
       filetypes=(("Gomoku files", '*.gmk'),))
     if filename == '':
       return
@@ -309,5 +325,5 @@ class TkBoard(object):
 
 
 if __name__ == "__main__":
-  tkb = TkBoard()
-  tkb.show()
+  TkBoard().show()
+

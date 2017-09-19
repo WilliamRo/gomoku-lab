@@ -22,3 +22,7 @@ bar.py
 
 # Ignore vim files
 *.swp
+
+# Ignore game files
+records/
+*.gmk
