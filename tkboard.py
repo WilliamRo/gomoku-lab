@@ -110,13 +110,14 @@ class TkBoard(object):
     # region: Layout
 
     self.form.title('Gomoku')
+    self.form.config(bg='white')
     self.form.bind('<Key>', self.on_key_press)
     self.form.bind('<Control-s>', self.save_game)
     self.form.bind('<Control-l>', self.load_game)
     self.form.resizable(width=False, height=False)
 
     self.status_bar = tk.Frame(self.form, bg='white')
-    self.status_bar.pack(side=tk.TOP, fill=tk.X)
+    self.status_bar.pack(side=tk.TOP, fill=tk.X, padx=5)
     self.chess_board = tk.Frame(self.form, bg='white')
     self.chess_board.pack(side=tk.TOP)
     self.control_center = tk.Frame(self.form, bg='white')
@@ -176,11 +177,20 @@ class TkBoard(object):
   # region: Public Methods
 
   def show(self):
+    self.form.after(1, self.move_to_center)
     self.form.mainloop()
 
   # endregion: Public Methods
 
   # region: Private Methods
+
+  def move_to_center(self):
+    sh = self.form.winfo_screenheight()
+    sw = self.form.winfo_screenwidth()
+    h, w = self.form.winfo_height(), self.form.winfo_width()
+    x = sw // 2 - w // 2
+    y = sh // 2 - h // 2
+    self.form.geometry('{}x{}+{}+{}'.format(w, h, x, y))
 
   def restart(self):
     self.filename = None
