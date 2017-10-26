@@ -26,3 +26,6 @@ bar.py
 # Ignore game files
 records/
 *.gmk
+
+# Ignore references
+references/

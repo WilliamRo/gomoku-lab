@@ -21,6 +21,10 @@ class Board(object):
             and self.matrix.shape == (15, 15))
     return -1 if self.matrix.sum() else 1
 
+  @property
+  def legal_positions(self):
+    return [tuple(position) for position in np.argwhere(self.matrix == 0)]
+
   def __getitem__(self, item):
     assert isinstance(item, tuple) and len(item) == 2
     return self.matrix[item[0], item[1]]

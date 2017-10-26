@@ -105,6 +105,8 @@ class TkBoard(object):
                    2: Images.stone(2), -2: Images.stone(-2)}
     self.positions = {}
 
+    self.auto_policy = self.default_policy
+
     # region: Design form
 
     # region: Layout
@@ -155,7 +157,8 @@ class TkBoard(object):
     self.btnRedo = tk.Button(self.control_center, text="Redo",
                              command=self.redo)
     self.btnRedo.pack(side=tk.LEFT, padx=2, pady=2)
-    self.btnAuto = tk.Button(self.control_center, text="Auto")
+    self.btnAuto = tk.Button(self.control_center, text="Auto",
+                             command=self.auto)
     self.btnAuto.pack(side=tk.RIGHT, padx=2, pady=2)
 
     # endregion: Design form
@@ -183,6 +186,21 @@ class TkBoard(object):
   # endregion: Public Methods
 
   # region: Private Methods
+
+  @staticmethod
+  def default_policy(state):
+    assert isinstance(state, np.ndarray)
+    legal_positions = np.argwhere(state == 0)
+    index = np.random.randint(0, len(legal_positions))
+    return tuple(legal_positions[index])
+
+  def auto(self):
+    if self.game.status:
+      return
+    next_position = self.auto_policy(self.game.board.matrix)
+    flag = self.game.place_stone(int(next_position[0]), int(next_position[1]))
+    if flag:
+      self.refresh()
 
   def move_to_center(self):
     sh = self.form.winfo_screenheight()
@@ -254,7 +272,7 @@ class TkBoard(object):
 
   def update_control_center(self):
     # Disable button auto
-    self.btnAuto.config(state=tk.DISABLED)
+    self.btnAuto.config(state=tk.DISABLED if self.game.status else tk.ACTIVE)
     # Restart and Undo
     state = tk.NORMAL if len(self.game.records) > 0 else tk.DISABLED
     self.btnRestart.config(state=state)
@@ -317,6 +335,8 @@ class TkBoard(object):
       flag = self.game.home()
     elif event.keysym in ['l', 'End']:
       flag = self.game.end()
+    elif event.keysym in ['a']:
+      self.auto()
 
     if flag:
       self.refresh()

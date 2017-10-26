@@ -25,8 +25,7 @@ def get_status(board, coord):
           break
         counter += 1
 
-    assert counter <= 5
-    if counter == 5:
+    if counter >= 5:
       return color
 
   return 0

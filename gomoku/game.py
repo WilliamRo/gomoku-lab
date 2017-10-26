@@ -28,6 +28,10 @@ class Game(object):
     return self.board.next_stone
 
   @property
+  def legal_positions(self):
+    return self.board.legal_positions
+
+  @property
   def status(self):
     if len(self.records) == 0:
       return 0
