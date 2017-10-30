@@ -3,19 +3,38 @@ from __future__ import division
 from __future__ import print_function
 
 import pickle
+import numpy as np
 
 from .board import Board
 from .logic import get_status
 
+from tframe.models.rl.interfaces import FMDPAgent
+from tframe.models.rl.interfaces import Player
 
-class Game(object):
+
+class Game(FMDPAgent):
   """A gomoku game."""
+
+  # region : Constants
+
+  BLACK_WIN = 1
+  WHITE_WIN = -1
+  NONTERMINAL = 0
+  TIE = 2
+  BLACK = 1
+  WHITE = -1
+
+  # endregion : Constants
+
   def __init__(self):
     # Initiate board
     self.board = Board()
     # Initialize stacks
     self.records = []
     self.redos = []
+
+    self.candidate_moves = None
+
 
   # region : Properties
 
@@ -33,22 +52,102 @@ class Game(object):
 
   @property
   def status(self):
+    """Game status. 1: Black wins; -1: White wins; 2: Tie; 0: Non-terminal"""
     if len(self.records) == 0:
-      return 0
+      return self.NONTERMINAL
     stat = get_status(self.board.matrix, self.records[-1])
     if stat != 0:
       return stat
 
-    return 0 if len(self.records) < 225 else 2
+    return self.NONTERMINAL if len(self.records) < 225 else self.TIE
+
+  @property
+  def terminated(self):
+    return self.status != self.NONTERMINAL
+
+  @property
+  def state(self):
+    return self.board.matrix
+
+  @property
+  def candidate_states(self):
+    if self.terminated:
+      return None
+
+    moves = self.legal_positions
+    assert len(moves) > 0
+    candidates = np.stack([self.state] * len(moves))
+    stone = self.next_stone
+    for i, move in enumerate(moves):
+      candidates[i, move[0], move[1]] = stone
+
+    self.candidate_moves = moves
+    return candidates
 
   # endregion : Properties
 
   # region : Public Methods
 
+  def compete(self, players, rounds, **kwargs):
+    if (not isinstance(players[0], Player) or
+        not isinstance(players[1], Player)):
+      raise TypeError('players should be a list of Player')
+
+    results = [[0, 0, 0, 1], [0, 0, 0, 1]]
+    for offensive in range(2):
+      defensive = 1 - offensive
+      for _ in range(rounds):
+        self.restart()
+        self.default_first_move()
+        next_player = defensive
+        while not self.terminated:
+          players[next_player].next_step(self)
+          results[offensive][3] += 1
+          next_player = 1 - next_player
+        if self.status == self.BLACK_WIN:
+          results[offensive][offensive] += 1
+        elif self.status == self.WHITE_WIN:
+          results[offensive][defensive] += 1
+        elif self.status == self.TIE:
+          results[offensive][2] += 1
+        else:
+          raise ValueError('The game is expected to be terminated')
+
+    # Generate report
+    ties = [' ({} ties)'.format(results[0][2]) if results[0][2] else '',
+            ' ({} ties)'.format(results[1][2]) if results[1][2] else '']
+    avg_steps = ['{:.1f} steps on average'.format(results[0][3] / rounds),
+                 '{:.1f} steps on average'.format(results[1][3] / rounds)]
+    reports = ['Player 1 holds black: {}-{}{}, {}'.format(
+               results[0][0], results[0][1], ties[0], avg_steps[0]),
+               'Player 1 holds white: {}-{}{}, {}'.format(
+               results[1][0], results[1][1], ties[1], avg_steps[1])]
+    rate = (results[0][0] + results[1][0]) / (2 * rounds)
+
+    return rate, reports
+
+  def action_index(self, values):
+    return (np.argmax(values) if self.next_stone == self.BLACK
+             else np.argmin(values))
+
+  def act(self, index):
+    assert (self.candidate_moves is not None and
+             len(self.candidate_moves) > index)
+    position = self.candidate_moves[index]
+    self.place_stone(int(position[0]), int(position[1]))
+    reward = self.status
+    return reward if reward == 1 else 0
+
+  def snapshot(self, filename):
+    self.save(filename)
+
   def restart(self):
     self.board.clear()
     self.records = []
     self.redos = []
+
+  def default_first_move(self):
+    assert self.place_stone(7, 7)
 
   def place_stone(self, row, col):
     if self.board.place_stone(row, col):
@@ -87,6 +186,8 @@ class Game(object):
     return flag
 
   def save(self, filename):
+    if filename[-4:] != '.gmk':
+      filename = '{}.gmk'.format(filename)
     with open(filename, 'wb') as output:
       pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
 

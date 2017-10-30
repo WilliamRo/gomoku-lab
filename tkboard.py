@@ -187,15 +187,53 @@ class TkBoard(object):
 
   # region: Private Methods
 
-  @staticmethod
-  def default_policy(state):
-    assert isinstance(state, np.ndarray)
-    legal_positions = np.argwhere(state == 0)
-    index = np.random.randint(0, len(legal_positions))
-    return tuple(legal_positions[index])
+  # region : Refresh
+
+  def refresh(self):
+    assert isinstance(self.game, Game)
+    # Refresh status bar
+    self.update_status()
+    # Refresh chess board
+    for i in range(15):
+      for j in range(15):
+        self.set_image((i, j))
+    if len(self.game.records) > 0:
+      self.set_image(self.game.records[-1], factor=2)
+    # Refresh control center
+    self.update_control_center()
+    # Update title
+    self.update_title()
+
+  def update_title(self):
+    filename = 'New Game'
+    if self.filename is not None:
+      # Hide directory information
+      paths = re.split(r'/|\\]', self.filename)
+      filename = paths[-1]
+      # Hide extension 'cause it provides no information
+      filename = filename[:-4]
+    title = 'Gomoku - {}'.format(filename)
+    self.form.title(title)
+
+  def update_status(self):
+    stat = self.game.status
+    if stat == Game.NONTERMINAL:
+      color = self.game.next_stone
+      self.next_stone.config(image=self.stones[color])
+      self.status.config(
+        text="{}'s turn".format("Black" if color == 1 else "White"))
+    elif stat in [-1, 1]:
+      self.next_stone.config(image=self.stones[stat*2])
+      self.status.config(
+        text="{} wins!".format("Black" if stat == 1 else "White"))
+    else:
+      self.next_stone.config(image=self.stones[0])
+      self.status.config(text='Draw!')
+
+  # endregion : Refresh
 
   def auto(self):
-    if self.game.status:
+    if self.game.status != Game.NONTERMINAL:
       return
     next_position = self.auto_policy(self.game.board.matrix)
     flag = self.game.place_stone(int(next_position[0]), int(next_position[1]))
@@ -228,47 +266,6 @@ class TkBoard(object):
     else:
       # Else show grid
       self.positions[coord].config(image=self.grids[coord])
-
-  def refresh(self):
-    assert isinstance(self.game, Game)
-    # Refresh status bar
-    self.update_status()
-    # Refresh chess board
-    for i in range(15):
-      for j in range(15):
-        self.set_image((i, j))
-    if len(self.game.records) > 0:
-      self.set_image(self.game.records[-1], factor=2)
-    # Refresh control center
-    self.update_control_center()
-    # Update title
-    self.update_title()
-
-  def update_title(self):
-    filename = 'New Game'
-    if self.filename is not None:
-      # Hide directory information
-      paths = re.split(r'/|\\]', self.filename)
-      filename = paths[-1]
-      # Hide extension 'cause it provides no information
-      filename = filename[:-4]
-    title = 'Gomoku - {}'.format(filename)
-    self.form.title(title)
-
-  def update_status(self):
-    stat = self.game.status
-    if stat == 0:
-      color = self.game.next_stone
-      self.next_stone.config(image=self.stones[color])
-      self.status.config(
-        text="{}'s turn".format("Black" if color == 1 else "White"))
-    elif stat in [-1, 1]:
-      self.next_stone.config(image=self.stones[stat*2])
-      self.status.config(
-        text="{} wins!".format("Black" if stat == 1 else "White"))
-    else:
-      self.next_stone.config(image=self.stones[0])
-      self.status.config(text='Draw!')
 
   def update_control_center(self):
     # Disable button auto
@@ -350,6 +347,17 @@ class TkBoard(object):
         self.refresh()
 
   # endregion: Events
+
+  #region : Static Methods
+
+  @staticmethod
+  def default_policy(state):
+    assert isinstance(state, np.ndarray)
+    legal_positions = np.argwhere(state == 0)
+    index = np.random.randint(0, len(legal_positions))
+    return tuple(legal_positions[index])
+
+  #endregion : Static Methods
 
   '''For some reason, do not remove this line'''
 
