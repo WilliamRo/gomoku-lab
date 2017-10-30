@@ -21,15 +21,19 @@ def main(_):
   console.suppress_logging()
   console.start('TD Gomoku - vanilla')
 
-  model = models.mlp00('mlp00_00')
+  with tf.Graph().as_default():
+    model = models.mlp00('mlp00_01')
+
+  with tf.Graph().as_default():
+    opponent = models.mlp00('mlp00_01')
 
   game = Game()
   if FLAGS.train:
-    model.train(game, episodes=10000, print_cycle=5, snapshot_cycle=200,
-                match_cycle=500, rounds=100, rate_thresh=1.0,
+    model.train(game, episodes=1000000, print_cycle=5, snapshot_cycle=500,
+                match_cycle=1000, rounds=100, rate_thresh=1.0,
                 snapshot_function=game.snapshot)
   else:
-    model.compete(game, rounds=100, opponent=FMDRandomPlayer())
+    model.compete(game, rounds=100, opponent=opponent)
 
   console.end()
 
