@@ -21,31 +21,41 @@ mid = (stone_size - 1) // 2
 
 class Images:
   @staticmethod
-  def grid(i, j):
+  def grid(i, j, bgcolor=None, emphasize=False, emcolor=None):
     assert 0 <= i < 15 and 0 <= j < 15
+    bgcolor = [255, 255, 255] if bgcolor is None else bgcolor
+    emcolor = [255, 0, 0] if emcolor is None else emcolor
 
-    arr = np.ones([stone_size, stone_size]) * 255
+    arr = np.zeros([stone_size, stone_size, 3], dtype=np.uint8)
+    for k in range(3):
+      arr[:, :, k] = bgcolor[k]
 
     # Vertical
     if i == 0:
-      arr[mid:, mid] = 0
+      arr[mid:, mid, :] = 0
     elif i == 14:
-      arr[:mid+1, mid] = 0
+      arr[:mid+1, mid, :] = 0
     else:
-      arr[:, mid] = 0
+      arr[:, mid, :] = 0
     # Horizontal
     if j == 0:
-      arr[mid, mid:] = 0
+      arr[mid, mid:, :] = 0
     elif j == 14:
-      arr[mid, :mid+1] = 0
+      arr[mid, :mid+1, :] = 0
     else:
-      arr[mid, :] = 0
+      arr[mid, :, :] = 0
     # Special position
     r = 2
     if (i, j) in [(3, 3), (3, 11), (11, 3), (11, 11), (7, 7)]:
-      arr[mid-r:mid+r+1, mid-r:mid+r+1] = 0
+      arr[mid-r:mid+r+1, mid-r:mid+r+1, :] = 0
+    # Emphasize
+    if emphasize:
+      arr[mid, mid, :] = emcolor
+      for di, dj in [(1, 1), (-1, -1), (1, -1), (-1, 1)]:
+        for m in range(1, 4):
+          arr[mid + m * di, mid + m * dj] = emcolor
 
-    img = Image_.fromarray(arr)
+    img = Image_.fromarray(arr, 'RGB')
     return ImageTk.PhotoImage(img)
 
   @staticmethod
@@ -100,12 +110,15 @@ class TkBoard(object):
 
     self.form = tk.Tk()
     self.grids = {}
+    self.highlight_grids = {}
     # Images must be generated after an instance of Tk has been created
     self.stones = {1: Images.stone(1), 0: Images.stone(0), -1: Images.stone(-1),
                    2: Images.stone(2), -2: Images.stone(-2)}
     self.positions = {}
 
     self.auto_policy = self.default_policy
+    self.tips = True
+    self.reasonable_moves = None
 
     # region: Design form
 
@@ -132,6 +145,8 @@ class TkBoard(object):
     self.next_stone.pack(side=tk.LEFT, padx=2)
     self.status = tk.Label(self.status_bar, text='Status bar', bg='white')
     self.status.pack(side=tk.LEFT, padx=0)
+    self.moves = tk.Label(self.status_bar, text='', bg='white')
+    self.moves.pack(side=tk.RIGHT, padx=3)
 
     # Chess board
     for i in range(15):
@@ -140,6 +155,7 @@ class TkBoard(object):
       for j in range(15):
         coord = (i, j)
         self.grids[coord] = Images.grid(i, j)
+        self.highlight_grids[coord] = Images.grid(i, j, emphasize=True)
         self.positions[coord] = tk.Button(
           frame, cursor='hand2', relief='flat', overrelief='raised', bd=0,
           highlightthickness=0)
@@ -191,6 +207,8 @@ class TkBoard(object):
 
   def refresh(self):
     assert isinstance(self.game, Game)
+    if self.tips:
+      self.reasonable_moves = self.game.reasonable_moves
     # Refresh status bar
     self.update_status()
     # Refresh chess board
@@ -230,6 +248,8 @@ class TkBoard(object):
       self.next_stone.config(image=self.stones[0])
       self.status.config(text='Draw!')
 
+    self.moves.config(text='{} moves'.format(self.game.moves))
+
   # endregion : Refresh
 
   def auto(self):
@@ -265,7 +285,11 @@ class TkBoard(object):
       self.positions[coord].config(image=self.stones[color*factor])
     else:
       # Else show grid
-      self.positions[coord].config(image=self.grids[coord])
+      image = self.grids[coord]
+      if (self.tips and self.reasonable_moves is not None
+          and coord in self.reasonable_moves):
+        image = self.highlight_grids[coord]
+      self.positions[coord].config(image=image)
 
   def update_control_center(self):
     # Disable button auto
@@ -334,6 +358,12 @@ class TkBoard(object):
       flag = self.game.end()
     elif event.keysym in ['a']:
       self.auto()
+    elif event.keysym in ['t']:
+      self.tips = not self.tips
+      flag = True
+    elif event.keysym in ['d']:
+      situation = self.game.situation
+      flag = False
 
     if flag:
       self.refresh()

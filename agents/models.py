@@ -40,6 +40,29 @@ def mlp00(mark):
 
   return model
 
+def mlp01(mark):
+  # Define model
+  model = TDPlayer(mark=mark)
+
+  model.add(Input(sample_shape=[15, 15]))
+  model.add(Flatten())
+
+  model.add(Linear(225))
+  model.add(BatchNorm())
+  model.add(Activation.ReLU())
+
+  model.add(Linear(225))
+  model.add(BatchNorm())
+  model.add(Activation.ReLU())
+
+  model.add(Linear(1))
+  model.add(Activation('sigmoid'))
+
+  # Build model
+  model.build()
+
+  return model
+
 # endregion : Vanilla
 
 

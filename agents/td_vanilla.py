@@ -22,15 +22,15 @@ def main(_):
   console.start('TD Gomoku - vanilla')
 
   with tf.Graph().as_default():
-    model = models.mlp00('mlp00_01')
+    model = models.mlp00('mlp00_00')
 
   with tf.Graph().as_default():
-    opponent = models.mlp00('mlp00_01')
+    opponent = models.mlp00('mlp00_00')
 
   game = Game()
   if FLAGS.train:
-    model.train(game, episodes=1000000, print_cycle=5, snapshot_cycle=500,
-                match_cycle=1000, rounds=100, rate_thresh=1.0,
+    model.train(game, episodes=100000, print_cycle=5, snapshot_cycle=400,
+                match_cycle=500, rounds=100, rate_thresh=1.0, shadow=opponent,
                 snapshot_function=game.snapshot)
   else:
     model.compete(game, rounds=100, opponent=opponent)

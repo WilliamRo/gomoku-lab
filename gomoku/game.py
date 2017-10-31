@@ -6,7 +6,8 @@ import pickle
 import numpy as np
 
 from .board import Board
-from .logic import get_status
+from .logic import get_situation
+from .logic import Situation
 
 from tframe.models.rl.interfaces import FMDPAgent
 from tframe.models.rl.interfaces import Player
@@ -23,6 +24,8 @@ class Game(FMDPAgent):
   TIE = 2
   BLACK = 1
   WHITE = -1
+  HUMAN_INTERFERENCE = False
+  SAMPLE = False
 
   # endregion : Constants
 
@@ -33,6 +36,9 @@ class Game(FMDPAgent):
     self.records = []
     self.redos = []
 
+    self.situation_records = [Situation()]
+    self.situation_redos = []
+
     self.candidate_moves = None
 
 
@@ -41,6 +47,10 @@ class Game(FMDPAgent):
   def __getitem__(self, item):
     assert isinstance(item, tuple) and len(item) == 2
     return self.board[item]
+
+  @property
+  def moves(self):
+    return len(self.records)
 
   @property
   def next_stone(self):
@@ -53,9 +63,7 @@ class Game(FMDPAgent):
   @property
   def status(self):
     """Game status. 1: Black wins; -1: White wins; 2: Tie; 0: Non-terminal"""
-    if len(self.records) == 0:
-      return self.NONTERMINAL
-    stat = get_status(self.board.matrix, self.records[-1])
+    stat = self.situation_records[-1].status
     if stat != 0:
       return stat
 
@@ -70,11 +78,23 @@ class Game(FMDPAgent):
     return self.board.matrix
 
   @property
+  def reasonable_moves(self):
+    return self.situation.reasonable_moves(self.next_stone)
+
+  @property
+  def situation(self):
+    return self.situation_records[-1]
+
+  @property
   def candidate_states(self):
     if self.terminated:
       return None
 
     moves = self.legal_positions
+    if self.HUMAN_INTERFERENCE:
+      reasonable_moves = self.reasonable_moves
+      moves = moves if reasonable_moves is None else reasonable_moves
+
     assert len(moves) > 0
     candidates = np.stack([self.state] * len(moves))
     stone = self.next_stone
@@ -127,8 +147,16 @@ class Game(FMDPAgent):
     return rate, reports
 
   def action_index(self, values):
-    return (np.argmax(values) if self.next_stone == self.BLACK
-             else np.argmin(values))
+    if not self.SAMPLE:
+      return (np.argmax(values) if self.next_stone == self.BLACK
+               else np.argmin(values))
+
+    if self.next_stone == self.WHITE:
+      values = 1 - values
+    exps = np.exp(values)
+    probability = exps / np.sum(exps)
+    index = np.random.choice(len(values), 1, p=probability.flatten())
+    return index[0]
 
   def act(self, index):
     assert (self.candidate_moves is not None and
@@ -145,6 +173,8 @@ class Game(FMDPAgent):
     self.board.clear()
     self.records = []
     self.redos = []
+    self.situation_records = [Situation()]
+    self.situation_redos = []
 
   def default_first_move(self):
     assert self.place_stone(7, 7)
@@ -153,6 +183,12 @@ class Game(FMDPAgent):
     if self.board.place_stone(row, col):
       self.records.append((row, col))
       self.redos = []
+
+      situation = get_situation(
+        self.board.matrix, (row, col), self.situation_records[-1])
+      self.situation_records.append(situation)
+      self.situation_redos = []
+
       return True
 
     return False
@@ -163,6 +199,9 @@ class Game(FMDPAgent):
     coord = self.records.pop()
     self.redos.append(coord)
     self.board.remove_stone(*coord)
+
+    self.situation_redos.append(self.situation_records.pop())
+
     return True
 
   def redo(self):
@@ -171,6 +210,9 @@ class Game(FMDPAgent):
     coord = self.redos.pop()
     self.records.append(coord)
     self.board.place_stone(*coord)
+
+    self.situation_records.append(self.situation_redos.pop())
+
     return True
 
   def home(self):
