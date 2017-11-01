@@ -12,11 +12,13 @@ from tframe.models.rl.random_players import FMDRandomPlayer
 from agents import models
 
 from gomoku.game import Game
+from tkboard import TkBoard
 
 
 def main(_):
   FLAGS.overwrite = False
   FLAGS.train = True
+  play = True
 
   console.suppress_logging()
   console.start('TD Gomoku - vanilla')
@@ -29,11 +31,14 @@ def main(_):
 
   game = Game()
   if FLAGS.train:
-    model.train(game, episodes=100000, print_cycle=5, snapshot_cycle=400,
-                match_cycle=500, rounds=100, rate_thresh=1.0, shadow=opponent,
-                snapshot_function=game.snapshot)
+    model.train(game, episodes=500000, print_cycle=100, snapshot_cycle=1000,
+                match_cycle=2000, rounds=5, rate_thresh=1.0, shadow=opponent,
+                save_cycle=200, snapshot_function=game.snapshot)
   else:
-    model.compete(game, rounds=100, opponent=opponent)
+    if play:
+      TkBoard(player=model).show()
+    else:
+      model.compete(game, rounds=100, opponent=opponent)
 
   console.end()
 

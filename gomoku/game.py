@@ -24,7 +24,7 @@ class Game(FMDPAgent):
   TIE = 2
   BLACK = 1
   WHITE = -1
-  HUMAN_INTERFERENCE = False
+  HUMAN_INTERFERENCE = True
   SAMPLE = False
 
   # endregion : Constants
@@ -57,7 +57,7 @@ class Game(FMDPAgent):
     return self.board.next_stone
 
   @property
-  def legal_positions(self):
+  def legal_moves(self):
     return self.board.legal_positions
 
   @property
@@ -78,8 +78,8 @@ class Game(FMDPAgent):
     return self.board.matrix
 
   @property
-  def reasonable_moves(self):
-    return self.situation.reasonable_moves(self.next_stone)
+  def recommended_moves(self):
+    return self.situation.recommended_moves(self.next_stone)
 
   @property
   def situation(self):
@@ -90,10 +90,11 @@ class Game(FMDPAgent):
     if self.terminated:
       return None
 
-    moves = self.legal_positions
+    moves = self.legal_moves
     if self.HUMAN_INTERFERENCE:
-      reasonable_moves = self.reasonable_moves
-      moves = moves if reasonable_moves is None else reasonable_moves
+      recommended_moves = self.recommended_moves
+      if recommended_moves is not None:
+        moves = recommended_moves
 
     assert len(moves) > 0
     candidates = np.stack([self.state] * len(moves))

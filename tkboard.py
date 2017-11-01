@@ -13,10 +13,15 @@ import re
 import os
 
 from gomoku.game import Game
+from tframe.models.rl.interfaces import Player
 
 
 stone_size = 21
 mid = (stone_size - 1) // 2
+WIN_BG = [92, 186, 249]
+WIN_BG_TK = 'SteelBlue1'
+TIE_BG = [206, 237, 77]
+TIE_BG_TK = 'chartreuse2'
 
 
 class Images:
@@ -66,7 +71,14 @@ class Images:
                                        -2/2 for highlighted white/black
     :return: An instance of ImageTk.PhotoImage
     '''
-    arr = np.ones([stone_size, stone_size]) * 255
+    if color not in [3, -3, 0]:
+      bgcolor = [255, 255, 255]
+    else:
+      bgcolor = TIE_BG if color == 0 else WIN_BG
+
+    arr = np.zeros([stone_size, stone_size, 3], dtype=np.uint8)
+    for k in range(3):
+      arr[:, :, k] = bgcolor[k]
 
     # Calculate distance to origin for each pixel
     rad = (stone_size - 1) / 2
@@ -74,22 +86,25 @@ class Images:
     X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
     Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
     D = np.round(np.sqrt(X ** 2 + Y ** 2))
+    D = np.stack([D] * 3, axis=2)
 
     # Generate images
     rad = rad - 1
-    if color in [-1, 1, -2, 2]:
+    if color in [-1, 1, -2, 2, -3, 3]:
+      mask = D < rad
+      arr[mask] = 255
       mask = D <= rad if color > 0 else D == rad
       arr[mask] = 0
-      if color in [-2, 2]:
-        brush = 255 if color == 2 else 0
+      if color in [-2, 2, -3, 3]:
+        brush = 255 if color > 0 else 0
         half = int(np.round(rad / 2))
         r = half
-        arr[mid-1:mid+2, mid-r+1:mid+r] = brush
-        arr[mid-r+1:mid+r, mid-1:mid+2] = brush
+        arr[mid-1:mid+2, mid-r+1:mid+r, :] = brush
+        arr[mid-r+1:mid+r, mid-1:mid+2, :] = brush
 
         rs = 0  # keep it
-        arr[mid, mid-r+1-rs:mid+r+rs] = brush
-        arr[mid-r+1-rs:mid+r+rs, mid] = brush
+        arr[mid, mid-r+1-rs:mid+r+rs, :] = brush
+        arr[mid-r+1-rs:mid+r+rs, mid, :] = brush
     else:
       mask = D <= rad
       arr[mask] = 0
@@ -97,12 +112,12 @@ class Images:
       arr[mask] = 255
 
     # Convert array to PhotoImage
-    img = Image_.fromarray(arr)
+    img = Image_.fromarray(arr, 'RGB')
     return ImageTk.PhotoImage(img)
 
 
 class TkBoard(object):
-  def __init__(self, game=None):
+  def __init__(self, game=None, player=None):
     self.game = None
     game = Game() if game is None else game
     self.bind(game)
@@ -113,12 +128,18 @@ class TkBoard(object):
     self.highlight_grids = {}
     # Images must be generated after an instance of Tk has been created
     self.stones = {1: Images.stone(1), 0: Images.stone(0), -1: Images.stone(-1),
-                   2: Images.stone(2), -2: Images.stone(-2)}
+                   2: Images.stone(2), -2: Images.stone(-2),
+                   3: Images.stone(3), -3: Images.stone(-3)}
     self.positions = {}
 
-    self.auto_policy = self.default_policy
     self.tips = True
     self.reasonable_moves = None
+
+    self.auto_policy = self.default_policy
+    self.player = player
+    if player is not None:
+      if not isinstance(player, Player):
+        raise TypeError('player must be an instance of Player')
 
     # region: Design form
 
@@ -131,12 +152,13 @@ class TkBoard(object):
     self.form.bind('<Control-l>', self.load_game)
     self.form.resizable(width=False, height=False)
 
+    padx = 8
     self.status_bar = tk.Frame(self.form, bg='white')
-    self.status_bar.pack(side=tk.TOP, fill=tk.X, padx=5)
+    self.status_bar.pack(side=tk.TOP, fill=tk.X, padx=padx)
     self.chess_board = tk.Frame(self.form, bg='white')
     self.chess_board.pack(side=tk.TOP)
     self.control_center = tk.Frame(self.form, bg='white')
-    self.control_center.pack(side=tk.TOP, fill=tk.X)
+    self.control_center.pack(side=tk.TOP, fill=tk.X, padx=padx)
 
     # endregion: Layout
 
@@ -146,7 +168,7 @@ class TkBoard(object):
     self.status = tk.Label(self.status_bar, text='Status bar', bg='white')
     self.status.pack(side=tk.LEFT, padx=0)
     self.moves = tk.Label(self.status_bar, text='', bg='white')
-    self.moves.pack(side=tk.RIGHT, padx=3)
+    self.moves.pack(side=tk.RIGHT, padx=1)
 
     # Chess board
     for i in range(15):
@@ -164,18 +186,19 @@ class TkBoard(object):
         self.positions[coord].pack(side=tk.LEFT)
 
     # Control center
+    pady = 5
     self.btnRestart = tk.Button(self.control_center, text='Restart',
                                 command=self.restart)
-    self.btnRestart.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnRestart.pack(side=tk.LEFT, padx=2, pady=pady)
     self.btnUndo = tk.Button(self.control_center, text="Undo",
                              command=self.undo)
-    self.btnUndo.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnUndo.pack(side=tk.LEFT, padx=2, pady=pady)
     self.btnRedo = tk.Button(self.control_center, text="Redo",
                              command=self.redo)
-    self.btnRedo.pack(side=tk.LEFT, padx=2, pady=2)
+    self.btnRedo.pack(side=tk.LEFT, padx=2, pady=pady)
     self.btnAuto = tk.Button(self.control_center, text="Auto",
                              command=self.auto)
-    self.btnAuto.pack(side=tk.RIGHT, padx=2, pady=2)
+    self.btnAuto.pack(side=tk.RIGHT, padx=2, pady=pady)
 
     # endregion: Design form
 
@@ -207,8 +230,8 @@ class TkBoard(object):
 
   def refresh(self):
     assert isinstance(self.game, Game)
-    if self.tips:
-      self.reasonable_moves = self.game.reasonable_moves
+    self.reasonable_moves = self.game.recommended_moves if (
+      self.tips and self.game.status == self.game.NONTERMINAL) else None
     # Refresh status bar
     self.update_status()
     # Refresh chess board
@@ -235,29 +258,39 @@ class TkBoard(object):
 
   def update_status(self):
     stat = self.game.status
+    bgcolor = 'white'
     if stat == Game.NONTERMINAL:
       color = self.game.next_stone
       self.next_stone.config(image=self.stones[color])
       self.status.config(
         text="{}'s turn".format("Black" if color == 1 else "White"))
     elif stat in [-1, 1]:
-      self.next_stone.config(image=self.stones[stat*2])
+      self.next_stone.config(image=self.stones[stat * 3])
       self.status.config(
         text="{} wins!".format("Black" if stat == 1 else "White"))
+      bgcolor = WIN_BG_TK
     else:
       self.next_stone.config(image=self.stones[0])
       self.status.config(text='Draw!')
+      bgcolor = TIE_BG_TK
 
     self.moves.config(text='{} moves'.format(self.game.moves))
+    self.status.config(bg=bgcolor)
+    self.moves.config(bg=bgcolor)
+    self.status_bar.config(bg=bgcolor)
 
   # endregion : Refresh
 
   def auto(self):
     if self.game.status != Game.NONTERMINAL:
       return
-    next_position = self.auto_policy(self.game.board.matrix)
-    flag = self.game.place_stone(int(next_position[0]), int(next_position[1]))
-    if flag:
+    if self.player is None:
+      next_position = self.auto_policy()
+      flag = self.game.place_stone(int(next_position[0]), int(next_position[1]))
+      if flag:
+        self.refresh()
+    else:
+      self.player.next_step(self.game)
       self.refresh()
 
   def move_to_center(self):
@@ -378,16 +411,16 @@ class TkBoard(object):
 
   # endregion: Events
 
-  #region : Static Methods
+  # region : Other Methods
 
-  @staticmethod
-  def default_policy(state):
-    assert isinstance(state, np.ndarray)
-    legal_positions = np.argwhere(state == 0)
-    index = np.random.randint(0, len(legal_positions))
-    return tuple(legal_positions[index])
+  def default_policy(self):
+    moves = self.game.recommended_moves
+    if moves is None:
+      moves = self.game.legal_moves
+    index = np.random.randint(0, len(moves))
+    return moves[index]
 
-  #endregion : Static Methods
+  # endregion : Other Methods
 
   '''For some reason, do not remove this line'''
 
