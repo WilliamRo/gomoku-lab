@@ -31,7 +31,7 @@ def main(_):
 
   game = Game()
   if FLAGS.train:
-    model.train(game, episodes=500000, print_cycle=100, snapshot_cycle=1000,
+    model.train(game, episodes=500000, print_cycle=20, snapshot_cycle=300,
                 match_cycle=2000, rounds=5, rate_thresh=1.0, shadow=opponent,
                 save_cycle=200, snapshot_function=game.snapshot)
   else:

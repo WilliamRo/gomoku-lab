@@ -97,6 +97,11 @@ class Pattern(list):
     return [self.coords[i] for i in indices]
 
   @property
+  def worthless(self):
+    return (sum(self[1:-1]) < 2 or
+             self[0] == self[-1] == self.BLOCK and len(self) < 7)
+
+  @property
   def potentials(self):
     def try_criticals(pattern, collection, i):
       assert isinstance(pattern, Pattern)
@@ -229,9 +234,10 @@ class Situation(object):
     return None
 
   def _find_siblings(self, color):
+    """Siblings are groups of nonfatal potentials"""
     siblings = []
 
-    potentials = copy.copy(self.potentials[color])
+    potentials = [p for p in self.potentials[color] if not p.fatal]
     while len(potentials) > 0:
       # Pick the 1st potential
       sibling = [potentials[0]]

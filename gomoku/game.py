@@ -96,6 +96,7 @@ class Game(FMDPAgent):
       if recommended_moves is not None:
         moves = recommended_moves
 
+    moves = list(set(moves))
     assert len(moves) > 0
     candidates = np.stack([self.state] * len(moves))
     stone = self.next_stone
