@@ -97,7 +97,21 @@ class Situation(object):
   # region : Private Methods
 
   def _mate_moves(self, color):
-    return []
+    return [crystal[0] for crystal in self.crystals[color]
+             if crystal.level == 4]
+
+  def _four_mate_moves(self, color):
+    moves = []
+    for coord, crystals in self.eye_of[color].items():
+      assert isinstance(crystals, list) and len(crystals) > 0
+      if len([crystal for crystal in crystals if crystal.level == 3]) > 1:
+        moves.append(coord)
+
+    return moves
+
+  def _slay_moves(self, color):
+    moves = []
+    return moves
 
   # endregion : Private Methods
 
