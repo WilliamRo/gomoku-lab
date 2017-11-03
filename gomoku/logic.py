@@ -8,6 +8,7 @@ import copy
 
 BLACK = 1
 WHITE = -1
+_MAX_SEEDS = (15 - 4) * 15 * 2 + (15 - 4) ** 2 * 2
 
 inbound = lambda c: (all(c >= np.array([0, 0])) and
                       all(c < np.array([15, 15])))
@@ -314,6 +315,9 @@ class Situation(object):
     pass
 
   # endregion : Recommend
+
+  def coords_with_level(self, color):
+    return {}
 
   # region : Add and remove
 

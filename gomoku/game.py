@@ -6,8 +6,7 @@ import pickle
 import numpy as np
 
 from .board import Board
-from .logic import get_situation
-from .logic import Situation
+from .brain import Situation
 
 from tframe.models.rl.interfaces import FMDPAgent
 from tframe.models.rl.interfaces import Player
@@ -110,6 +109,9 @@ class Game(FMDPAgent):
 
   # region : Public Methods
 
+  def coords_with_color(self, color):
+    return self.situation.coords_with_level(color)
+
   def compete(self, players, rounds, **kwargs):
     if (not isinstance(players[0], Player) or
         not isinstance(players[1], Player)):
@@ -186,8 +188,7 @@ class Game(FMDPAgent):
       self.records.append((row, col))
       self.redos = []
 
-      situation = get_situation(
-        self.board.matrix, (row, col), self.situation_records[-1])
+      situation = self.situation.new_situation(self.board.matrix, (row, col))
       self.situation_records.append(situation)
       self.situation_redos = []
 

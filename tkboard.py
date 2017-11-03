@@ -18,22 +18,33 @@ from tframe.models.rl.interfaces import Player
 
 stone_size = 21
 mid = (stone_size - 1) // 2
-WIN_BG = [92, 186, 249]
-WIN_BG_TK = 'SteelBlue1'
+WIN_BG = {-1: [92, 186, 249], 1: [243, 60, 28]}
+WIN_BG_TK = {1: 'OrangeRed2', -1: 'SteelBlue1'}
 TIE_BG = [206, 237, 77]
 TIE_BG_TK = 'chartreuse2'
 
 
 class Images:
+
+  rad = (stone_size - 1) / 2
+  scale = np.arange(stone_size) - rad
+  X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
+  Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
+  D = np.round(np.sqrt(X ** 2 + Y ** 2))
+  D = np.stack([D] * 3, axis=2)
+
   @staticmethod
-  def grid(i, j, bgcolor=None, emphasize=False, emcolor=None):
+  def grid(i, j, bgcolor=None, emphasize=False, emcolor=None,
+            with_arr=False):
     assert 0 <= i < 15 and 0 <= j < 15
     bgcolor = [255, 255, 255] if bgcolor is None else bgcolor
     emcolor = [255, 0, 0] if emcolor is None else emcolor
 
-    arr = np.zeros([stone_size, stone_size, 3], dtype=np.uint8)
+    arr = np.ones([stone_size, stone_size, 3], dtype=np.uint8)
     for k in range(3):
       arr[:, :, k] = bgcolor[k]
+    mask = Images.D > Images.rad - 3
+    arr[mask] = 255
 
     # Vertical
     if i == 0:
@@ -61,10 +72,13 @@ class Images:
           arr[mid + m * di, mid + m * dj] = emcolor
 
     img = Image_.fromarray(arr, 'RGB')
-    return ImageTk.PhotoImage(img)
+    if with_arr:
+      return ImageTk.PhotoImage(img), arr
+    else:
+      return ImageTk.PhotoImage(img)
 
   @staticmethod
-  def stone(color):
+  def stone(color, bgarr=None):
     '''
     Generate a binary image for stone
     :param color: integer in {-1, 1}, -1 for white, 1 for black, 0 for draw
@@ -73,20 +87,22 @@ class Images:
     '''
     if color not in [3, -3, 0]:
       bgcolor = [255, 255, 255]
+    elif color == 0:
+      bgcolor = TIE_BG
     else:
-      bgcolor = TIE_BG if color == 0 else WIN_BG
+      bgcolor = WIN_BG[color / 3]
 
-    arr = np.zeros([stone_size, stone_size, 3], dtype=np.uint8)
-    for k in range(3):
-      arr[:, :, k] = bgcolor[k]
+    if bgarr is not None:
+      assert isinstance(bgarr, np.ndarray)
+      arr = bgarr.copy()
+    else:
+      arr = np.zeros([stone_size, stone_size, 3], dtype=np.uint8)
+      for k in range(3):
+        arr[:, :, k] = bgcolor[k]
 
     # Calculate distance to origin for each pixel
-    rad = (stone_size - 1) / 2
-    scale = np.arange(stone_size) - rad
-    X = np.vstack((scale.reshape(1, stone_size),) * stone_size)
-    Y = np.hstack((scale.reshape(stone_size, 1),) * stone_size)
-    D = np.round(np.sqrt(X ** 2 + Y ** 2))
-    D = np.stack([D] * 3, axis=2)
+    rad = Images.rad
+    D = Images.D
 
     # Generate images
     rad = rad - 1
@@ -125,6 +141,7 @@ class TkBoard(object):
 
     self.form = tk.Tk()
     self.grids = {}
+    self.grids_arr = {}
     self.highlight_grids = {}
     # Images must be generated after an instance of Tk has been created
     self.stones = {1: Images.stone(1), 0: Images.stone(0), -1: Images.stone(-1),
@@ -134,6 +151,9 @@ class TkBoard(object):
 
     self.tips = True
     self.reasonable_moves = None
+    self.coords_with_level = None
+    self.tip_side = 1
+    self.shelter = []
 
     self.auto_policy = self.default_policy
     self.player = player
@@ -176,13 +196,16 @@ class TkBoard(object):
       frame.pack(side=tk.TOP)
       for j in range(15):
         coord = (i, j)
-        self.grids[coord] = Images.grid(i, j)
+        img, arr = Images.grid(i, j, with_arr=True)
+        self.grids[coord] = img
+        self.grids_arr[coord] = arr
         self.highlight_grids[coord] = Images.grid(i, j, emphasize=True)
         self.positions[coord] = tk.Button(
           frame, cursor='hand2', relief='flat', overrelief='raised', bd=0,
           highlightthickness=0)
         self.positions[coord].coord = coord
         self.positions[coord].bind('<Button-1>', self.on_board_press)
+        self.positions[coord].bind('<Button-3>', self.on_board_right_click)
         self.positions[coord].pack(side=tk.LEFT)
 
     # Control center
@@ -230,8 +253,14 @@ class TkBoard(object):
 
   def refresh(self):
     assert isinstance(self.game, Game)
-    self.reasonable_moves = self.game.recommended_moves if (
-      self.tips and self.game.status == self.game.NONTERMINAL) else None
+    self.shelter.clear()
+    self.reasonable_moves = None
+    self.coords_with_level = None
+    if self.tips and self.game.status == self.game.NONTERMINAL:
+      self.reasonable_moves = self.game.recommended_moves
+      self.coords_with_level = self.game.coords_with_color(
+        self.game.next_stone * self.tip_side)
+
     # Refresh status bar
     self.update_status()
     # Refresh chess board
@@ -268,7 +297,7 @@ class TkBoard(object):
       self.next_stone.config(image=self.stones[stat * 3])
       self.status.config(
         text="{} wins!".format("Black" if stat == 1 else "White"))
-      bgcolor = WIN_BG_TK
+      bgcolor = WIN_BG_TK[stat]
     else:
       self.next_stone.config(image=self.stones[0])
       self.status.config(text='Draw!')
@@ -310,18 +339,31 @@ class TkBoard(object):
     assert isinstance(game, Game)
     self.game = game
 
-  def set_image(self, coord, color=None, factor=1):
-    color = self.game[coord] if color is None else color
+  def set_image(self, coord, token=None, factor=1):
+    token = self.game[coord] if token is None else token
 
-    if color:
+    if token:
       # If color is not 0, place stone
-      self.positions[coord].config(image=self.stones[color*factor])
+      image = Images.stone(token * factor, self.grids_arr[coord])
+      self.shelter.append(image)
+      self.positions[coord].config(image=image)
     else:
       # Else show grid
       image = self.grids[coord]
-      if (self.tips and self.reasonable_moves is not None
-          and coord in self.reasonable_moves):
-        image = self.highlight_grids[coord]
+      if self.tips:
+        if (self.coords_with_level is not None
+            and coord in self.coords_with_level.keys()):
+          pct = self.coords_with_level[coord] / (
+            max(self.coords_with_level.values()) + 1)
+          bgcolor = [255 - int((255 - c) * pct) for c in WIN_BG[
+            self.game.next_stone * self.tip_side]]
+
+          image = Images.grid(coord[0], coord[1], bgcolor)
+          self.shelter.append(image)
+
+        if (self.reasonable_moves is not None
+            and coord in self.reasonable_moves):
+          image = self.highlight_grids[coord]
       self.positions[coord].config(image=image)
 
   def update_control_center(self):
@@ -394,6 +436,9 @@ class TkBoard(object):
     elif event.keysym in ['t']:
       self.tips = not self.tips
       flag = True
+    elif event.keysym in ['r']:
+      self.tip_side *= -1
+      flag = True
     elif event.keysym in ['d']:
       situation = self.game.situation
       flag = False
@@ -408,6 +453,10 @@ class TkBoard(object):
       flag = self.game.place_stone(*coord)
       if flag:
         self.refresh()
+
+  def on_board_right_click(self, event):
+    coord = event.widget.coord
+    print('>> Position {}'.format(coord))
 
   # endregion: Events
 
